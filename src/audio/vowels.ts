@@ -2,13 +2,13 @@ import type { Vowel, VowelTarget, FormantData } from './types'
 
 // French vowel formant targets (F1, F2 in Hz) — adapted for children's voices
 const VOWEL_TARGETS: readonly VowelTarget[] = [
-  { vowel: 'a', f1: 1000, f2: 1600 },
-  { vowel: 'e', f1: 500, f2: 2600 },
-  { vowel: 'ɛ', f1: 700, f2: 2300 },
-  { vowel: 'i', f1: 350, f2: 2800 },
-  { vowel: 'o', f1: 600, f2: 1100 },
-  { vowel: 'u', f1: 400, f2: 1100 },
-  { vowel: 'y', f1: 350, f2: 2200 },
+  { vowel: 'a', f1: 750, f2: 1450 },
+  { vowel: 'e', f1: 400, f2: 2050 },
+  { vowel: 'ɛ', f1: 600, f2: 1750 },
+  { vowel: 'i', f1: 250, f2: 2250 },
+  { vowel: 'o', f1: 350, f2: 750 },
+  { vowel: 'u', f1: 300, f2: 750 },
+  { vowel: 'y', f1: 250, f2: 1750 },
 ] as const
 
 // Minimum RMS energy to consider the signal voiced

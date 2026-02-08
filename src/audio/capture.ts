@@ -3,6 +3,8 @@ import { computeRMS } from './volume.ts'
 import { detectPitch } from './pitch.ts'
 import { analyzeFormants } from './vowels.ts'
 import { trackDuration, initialDurationState } from './duration.ts'
+import { isRawVoicing, updateVoicing, initialVoicingState, VoicingState } from './voicing.ts'
+import { smoothVowel, initialVowelSmoothingState, VowelSmoothingState } from './vowelSmoothing.ts'
 
 // Volume threshold below which we consider the user is not voicing
 const VOICING_THRESHOLD = 0.01
@@ -21,6 +23,8 @@ export const createAudioPipeline = (): AudioPipeline => {
   let mediaStream: MediaStream | null = null
   let animationFrameId: number | null = null
   let durationState: DurationState = initialDurationState
+  let voicingState: VoicingState = initialVoicingState
+  let vowelSmoothingState: VowelSmoothingState = initialVowelSmoothingState
   let lastTimestamp = 0
   const subscribers = new Set<(features: VoiceFeatures) => void>()
 
@@ -47,8 +51,17 @@ export const createAudioPipeline = (): AudioPipeline => {
 
     const volume = computeRMS(frame.buffer)
     const pitch = detectPitch(frame.buffer, frame.sampleRate)
-    const { vowel, formants } = analyzeFormants(frame.buffer, frame.sampleRate)
-    const isVoicing = volume > VOICING_THRESHOLD
+    const { vowel: rawVowel, formants } = analyzeFormants(frame.buffer, frame.sampleRate)
+
+    // Point 1 + 2: pitch-gated voicing with hysteresis
+    const raw = isRawVoicing(volume, pitch, VOICING_THRESHOLD)
+    voicingState = updateVoicing(raw, voicingState)
+    const isVoicing = voicingState.isVoicing
+
+    // Point 3: temporal vowel smoothing
+    const smoothed = smoothVowel(isVoicing ? rawVowel : null, vowelSmoothingState)
+    vowelSmoothingState = smoothed.state
+    const vowel = isVoicing ? smoothed.vowel : null
 
     durationState = trackDuration(isVoicing, dt, durationState)
 
@@ -82,6 +95,8 @@ export const createAudioPipeline = (): AudioPipeline => {
 
     lastTimestamp = 0
     durationState = initialDurationState
+    voicingState = initialVoicingState
+    vowelSmoothingState = initialVowelSmoothingState
 
     animationFrameId = requestAnimationFrame(analysisLoop)
   }
@@ -106,6 +121,8 @@ export const createAudioPipeline = (): AudioPipeline => {
 
     analyserNode = null
     durationState = initialDurationState
+    voicingState = initialVoicingState
+    vowelSmoothingState = initialVowelSmoothingState
     lastTimestamp = 0
   }
 
