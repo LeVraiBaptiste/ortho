@@ -1,14 +1,14 @@
-import type { Vowel, VowelTarget } from './types'
+import type { Vowel, VowelTarget, FormantData } from './types'
 
-// French vowel formant targets (F1, F2 in Hz)
+// French vowel formant targets (F1, F2 in Hz) — adapted for children's voices
 const VOWEL_TARGETS: readonly VowelTarget[] = [
-  { vowel: 'a', f1: 750, f2: 1400 },
-  { vowel: 'e', f1: 400, f2: 2200 },
-  { vowel: 'ɛ', f1: 550, f2: 1900 },
-  { vowel: 'i', f1: 280, f2: 2300 },
-  { vowel: 'o', f1: 450, f2: 800 },
-  { vowel: 'u', f1: 310, f2: 800 },
-  { vowel: 'y', f1: 280, f2: 1800 },
+  { vowel: 'a', f1: 1000, f2: 1600 },
+  { vowel: 'e', f1: 500, f2: 2600 },
+  { vowel: 'ɛ', f1: 700, f2: 2300 },
+  { vowel: 'i', f1: 350, f2: 2800 },
+  { vowel: 'o', f1: 600, f2: 1100 },
+  { vowel: 'u', f1: 400, f2: 1100 },
+  { vowel: 'y', f1: 350, f2: 2200 },
 ] as const
 
 // Minimum RMS energy to consider the signal voiced
@@ -27,6 +27,16 @@ export const applyHammingWindow = (buffer: Float32Array): Float32Array => {
     windowed[i] = buffer[i] * w
   }
   return windowed
+}
+
+// Pre-emphasis filter to boost high frequencies (compensates natural spectral rolloff)
+export const applyPreEmphasis = (buffer: Float32Array, coeff: number = 0.97): Float32Array => {
+  const result = new Float32Array(buffer.length)
+  result[0] = buffer[0]
+  for (let i = 1; i < buffer.length; i++) {
+    result[i] = buffer[i] - coeff * buffer[i - 1]
+  }
+  return result
 }
 
 // Radix-2 Cooley-Tukey FFT (in-place, iterative)
@@ -143,23 +153,22 @@ export const detectVowel = (
     return null
   }
 
-  const windowed = applyHammingWindow(buffer)
+  const preEmphasized = applyPreEmphasis(buffer)
+  const windowed = applyHammingWindow(preEmphasized)
   const magnitudes = computeFFTMagnitude(windowed)
 
-  // Find formant peaks
-  const f1 = findPeakInRange(magnitudes, sampleRate, 200, 900)
-  const f2 = findPeakInRange(magnitudes, sampleRate, 700, 2500)
+  // Find F1 in extended range (supports children's voices up to ~1200 Hz)
+  const f1 = findPeakInRange(magnitudes, sampleRate, 200, 1200)
+
+  // F2 search starts above F1 with a guard margin to avoid detecting the same peak
+  const f2MinHz = f1 + 200
+  const f2 = findPeakInRange(magnitudes, sampleRate, f2MinHz, 2800)
 
   // Validate peaks have sufficient magnitude
   const f1Mag = peakMagnitudeAt(magnitudes, sampleRate, f1)
   const f2Mag = peakMagnitudeAt(magnitudes, sampleRate, f2)
 
   if (f1Mag < PEAK_MAGNITUDE_THRESHOLD || f2Mag < PEAK_MAGNITUDE_THRESHOLD) {
-    return null
-  }
-
-  // F2 should be higher than F1 for a valid vowel formant structure
-  if (f2 <= f1) {
     return null
   }
 
