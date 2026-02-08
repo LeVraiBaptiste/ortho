@@ -46,11 +46,15 @@ type Pebble = {
   readonly color: string
 }
 
+// --- Config ---
+
+const ENABLE_CAUSTICS = false
+
 // --- Constants ---
 
 const SAND_HEIGHT_RATIO = 0.1
 const SEAWEED_COUNT = 8
-const MAX_CREATURES = 15
+const MAX_CREATURES = 20
 const MIN_SPAWN_INTERVAL = 500 // ms
 const BUBBLE_BASE_RADIUS = 5
 const BUBBLE_VOLUME_SCALE = 30
@@ -58,6 +62,8 @@ const BUBBLE_RISE_SPEED = -1.5
 const BUBBLE_FADE_RATE = 0.004
 const CREATURE_FADE_ALPHA = 0.02
 const PEBBLE_COUNT = 20
+const VOICE_PRESENCE_ATTACK = 0.08  // ~200ms to full presence
+const VOICE_PRESENCE_DECAY = 0.02   // ~800ms fade out
 
 const WATER_TOP = '#1a6b8a'
 const WATER_BOTTOM = '#0a2a3a'
@@ -112,9 +118,11 @@ const drawCaustics = (
   width: number,
   height: number,
   time: number,
+  presence: number,
 ): void => {
+  if (!ENABLE_CAUSTICS || presence <= 0) return
   ctx.save()
-  ctx.globalAlpha = 0.06
+  ctx.globalAlpha = 0.06 * presence
   const cellSize = 80
   for (let cx = 0; cx < width + cellSize; cx += cellSize) {
     for (let cy = 0; cy < height * 0.6; cy += cellSize) {
@@ -187,7 +195,7 @@ const generateSeaweed = (width: number, height: number): Seaweed[] => {
   for (let i = 0; i < SEAWEED_COUNT; i++) {
     weeds.push({
       x: randomBetween(30, width - 30),
-      height: randomBetween(60, 150),
+      height: randomBetween(80, 400),
       segments: Math.floor(randomBetween(6, 12)),
       phaseOffset: randomBetween(0, Math.PI * 2),
     })
@@ -200,6 +208,7 @@ const drawSeaweed = (
   weeds: Seaweed[],
   canvasHeight: number,
   time: number,
+  presence: number,
 ): void => {
   const bottomY = canvasHeight * (1 - SAND_HEIGHT_RATIO)
 
@@ -211,7 +220,7 @@ const drawSeaweed = (
 
     for (let s = 1; s <= weed.segments; s++) {
       const t = s / weed.segments
-      const sway = Math.sin(time * 0.002 + weed.phaseOffset + s * 0.5) * (8 * t)
+      const sway = Math.sin(time * 0.002 + weed.phaseOffset + s * 0.5) * (20 * t) * presence
       const px = weed.x + sway
       const py = bottomY - s * segHeight
       ctx.lineTo(px, py)
@@ -227,7 +236,7 @@ const drawSeaweed = (
     // Draw leaves at some segments
     for (let s = 2; s < weed.segments; s += 2) {
       const t = s / weed.segments
-      const sway = Math.sin(time * 0.002 + weed.phaseOffset + s * 0.5) * (8 * t)
+      const sway = Math.sin(time * 0.002 + weed.phaseOffset + s * 0.5) * (20 * t) * presence
       const lx = weed.x + sway
       const ly = bottomY - s * segHeight
       const leafDir = s % 4 === 0 ? 1 : -1
@@ -270,9 +279,9 @@ const updateBubble = (bubble: Bubble, time: number): Bubble => ({
 const isBubbleAlive = (bubble: Bubble): boolean =>
   bubble.alpha > 0 && bubble.y > -bubble.radius
 
-const drawBubble = (ctx: CanvasRenderingContext2D, bubble: Bubble): void => {
+const drawBubble = (ctx: CanvasRenderingContext2D, bubble: Bubble, presence: number): void => {
   ctx.save()
-  ctx.globalAlpha = bubble.alpha
+  ctx.globalAlpha = bubble.alpha * presence
 
   // Bubble body
   ctx.beginPath()
@@ -589,9 +598,10 @@ const drawCreature = (
   ctx: CanvasRenderingContext2D,
   creature: Creature,
   time: number,
+  presence: number,
 ): void => {
   ctx.save()
-  ctx.globalAlpha = creature.alpha
+  ctx.globalAlpha = creature.alpha * presence
 
   switch (creature.kind) {
     case 'fish':
@@ -812,6 +822,8 @@ export const createAquarium = (): Game => {
   let lastSpawnTime = 0
   let bubbleSpawnCounter = 0
   let time = 0
+  let voicePresence = 0
+  let isCurrentlyVoicing = false
 
   const BUBBLE_SPAWN_THRESHOLD = 4
 
@@ -833,7 +845,7 @@ export const createAquarium = (): Game => {
     drawWaterBackground(ctx, width, height)
 
     // Caustic light patterns
-    drawCaustics(ctx, width, height, time)
+    drawCaustics(ctx, width, height, time, voicePresence)
 
     // Sandy bottom
     drawSandBottom(ctx, width, height)
@@ -842,21 +854,25 @@ export const createAquarium = (): Game => {
     drawPebbles(ctx, pebbles)
 
     // Seaweed (behind creatures)
-    drawSeaweed(ctx, seaweed, height, time)
+    drawSeaweed(ctx, seaweed, height, time, voicePresence)
 
     // Creatures
     for (const creature of creatures) {
-      drawCreature(ctx, creature, time)
+      drawCreature(ctx, creature, time, voicePresence)
     }
 
     // Bubbles (in front of everything)
     for (const bubble of bubbles) {
-      drawBubble(ctx, bubble)
+      drawBubble(ctx, bubble, voicePresence)
     }
   }
 
   const animate = (): void => {
     time = performance.now()
+
+    voicePresence = isCurrentlyVoicing
+      ? Math.min(1, voicePresence + VOICE_PRESENCE_ATTACK)
+      : Math.max(0, voicePresence - VOICE_PRESENCE_DECAY)
 
     // Update bubbles
     bubbles = bubbles
@@ -929,6 +945,7 @@ export const createAquarium = (): Game => {
   }
 
   const update = (features: VoiceFeatures): void => {
+    isCurrentlyVoicing = features.isVoicing
     const now = performance.now()
 
     // Spawn bubbles when voicing
@@ -976,6 +993,8 @@ export const createAquarium = (): Game => {
     lastSpawnTime = 0
     bubbleSpawnCounter = 0
     time = 0
+    voicePresence = 0
+    isCurrentlyVoicing = false
   }
 
   return {
