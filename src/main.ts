@@ -31,6 +31,7 @@ const voiceStore = createStore<VoiceFeatures>({
   vowel: null,
   isVoicing: false,
   duration: 0,
+  formants: null,
 })
 
 // 4. Create game instances

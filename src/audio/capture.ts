@@ -1,7 +1,7 @@
 import { AudioFrame, VoiceFeatures, DurationState } from './types.ts'
 import { computeRMS } from './volume.ts'
 import { detectPitch } from './pitch.ts'
-import { detectVowel } from './vowels.ts'
+import { analyzeFormants } from './vowels.ts'
 import { trackDuration, initialDurationState } from './duration.ts'
 
 // Volume threshold below which we consider the user is not voicing
@@ -47,7 +47,7 @@ export const createAudioPipeline = (): AudioPipeline => {
 
     const volume = computeRMS(frame.buffer)
     const pitch = detectPitch(frame.buffer, frame.sampleRate)
-    const vowel = detectVowel(frame.buffer, frame.sampleRate)
+    const { vowel, formants } = analyzeFormants(frame.buffer, frame.sampleRate)
     const isVoicing = volume > VOICING_THRESHOLD
 
     durationState = trackDuration(isVoicing, dt, durationState)
@@ -58,6 +58,7 @@ export const createAudioPipeline = (): AudioPipeline => {
       vowel,
       isVoicing,
       duration: durationState.currentDuration,
+      formants,
     }
 
     notifySubscribers(features)

@@ -175,6 +175,40 @@ export const detectVowel = (
   return classifyVowel(f1, f2)
 }
 
+export type FormantAnalysis = {
+  readonly vowel: Vowel | null
+  readonly formants: FormantData | null
+}
+
+export const analyzeFormants = (
+  buffer: Float32Array,
+  sampleRate: number,
+): FormantAnalysis => {
+  if (computeRMS(buffer) < ENERGY_THRESHOLD) {
+    return { vowel: null, formants: null }
+  }
+
+  const preEmphasized = applyPreEmphasis(buffer)
+  const windowed = applyHammingWindow(preEmphasized)
+  const magnitudes = computeFFTMagnitude(windowed)
+
+  const f1 = findPeakInRange(magnitudes, sampleRate, 200, 1200)
+  const f2MinHz = f1 + 200
+  const f2 = findPeakInRange(magnitudes, sampleRate, f2MinHz, 2800)
+
+  const f1Mag = peakMagnitudeAt(magnitudes, sampleRate, f1)
+  const f2Mag = peakMagnitudeAt(magnitudes, sampleRate, f2)
+
+  const fftSize = (magnitudes.length - 1) * 2
+  const formants: FormantData = { magnitudes, sampleRate, fftSize, f1, f2 }
+
+  if (f1Mag < PEAK_MAGNITUDE_THRESHOLD || f2Mag < PEAK_MAGNITUDE_THRESHOLD) {
+    return { vowel: null, formants }
+  }
+
+  return { vowel: classifyVowel(f1, f2), formants }
+}
+
 // --- Internal utilities ---
 
 const computeRMS = (buffer: Float32Array): number => {
