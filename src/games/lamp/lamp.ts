@@ -320,7 +320,8 @@ export const createLamp = (): Game => {
 
   const computeLightRadius = (volume: number): number => {
     const maxRadius = Math.min(width, height) * MAX_LIGHT_RADIUS_FACTOR
-    return MIN_LIGHT_RADIUS + volume * volume * maxRadius
+    const boosted = Math.pow(volume, 0.3)
+    return MIN_LIGHT_RADIUS + boosted * maxRadius
   }
 
   const updateDiscoveries = (radius: number): void => {

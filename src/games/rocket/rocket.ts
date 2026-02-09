@@ -481,8 +481,9 @@ export const createRocket = (): Game => {
     const topY = getRocketTopY()
 
     if (features.isVoicing && features.volume > 0.01) {
-      // Map volume (0..1) to altitude (restY..topY)
-      targetRocketY = restY - features.volume * (restY - topY)
+      // Apply sqrt curve to amplify low volumes — makes rocket more responsive
+      const boosted = Math.pow(features.volume, 0.3)
+      targetRocketY = restY - boosted * (restY - topY)
     } else {
       // Descend back to ground
       targetRocketY = restY
