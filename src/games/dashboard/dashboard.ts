@@ -2,6 +2,10 @@ import type { Game } from '../types'
 import type { VoiceFeatures, FormantData } from '../../audio/types'
 import { createElement, clearChildren } from '../../ui/dom'
 import { vowelColors, colors, withAlpha } from '../../ui/colors'
+import { createWavRecorder, downloadBlob } from '../../audio/wavRecorder'
+
+
+const isDev =  true
 
 // --- Styles ---
 
@@ -119,6 +123,24 @@ const historyDotBaseStyle = [
   'font-size: 13px',
   'font-weight: 700',
   'color: white',
+].join('; ')
+
+const recButtonStyle = [
+  'position: fixed',
+  'bottom: 24px',
+  'left: 24px',
+  'width: 56px',
+  'height: 56px',
+  'border-radius: 50%',
+  'border: 3px solid #e53e3e',
+  'background: white',
+  'cursor: pointer',
+  'display: flex',
+  'align-items: center',
+  'justify-content: center',
+  'box-shadow: 0 2px 12px rgba(0,0,0,0.15)',
+  'z-index: 1000',
+  'transition: all 0.15s',
 ].join('; ')
 
 // --- Helpers ---
@@ -394,6 +416,40 @@ export const createDashboard = (): Game => {
     historyCard.appendChild(vowelHistory)
     historyWrapper.appendChild(historyCard)
     wrapper.appendChild(historyWrapper)
+
+    // Dev mode: record button
+    if (isDev || true) {
+      const recBtn = createElement('button', { style: recButtonStyle })
+      const recDot = createElement('div', {
+        style: 'width: 24px; height: 24px; border-radius: 50%; background: #e53e3e; transition: all 0.15s;',
+      })
+      recBtn.appendChild(recDot)
+
+      let recorder = createWavRecorder((blob) => {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        downloadBlob(blob, `sample-${timestamp}.wav`)
+      })
+
+      recBtn.addEventListener('click', () => {
+        if (recorder.isRecording()) {
+          recorder.stop()
+          recDot.style.borderRadius = '50%'
+          recDot.style.background = '#e53e3e'
+          recBtn.style.borderColor = '#e53e3e'
+        } else {
+          recorder = createWavRecorder((blob) => {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+            downloadBlob(blob, `sample-${timestamp}.wav`)
+          })
+          recorder.start()
+          recDot.style.borderRadius = '4px'
+          recDot.style.background = '#e53e3e'
+          recBtn.style.borderColor = '#e53e3e'
+        }
+      })
+
+      wrapper.appendChild(recBtn)
+    }
 
     clearChildren(container)
     container.appendChild(wrapper)
