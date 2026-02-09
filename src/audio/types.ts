@@ -10,11 +10,13 @@ export type AudioFrame = {
 
 // Formant analysis data from the FFT spectrum
 export type FormantData = {
-  readonly magnitudes: Float32Array  // FFT magnitude spectrum
+  readonly magnitudes: Float32Array   // Raw FFT magnitude spectrum
+  readonly lpcEnvelope: Float32Array  // Smooth LPC spectral envelope (same frequency bins as magnitudes)
   readonly sampleRate: number
-  readonly fftSize: number           // original FFT size (magnitudes.length - 1) * 2
-  readonly f1: number                // detected F1 in Hz
-  readonly f2: number                // detected F2 in Hz
+  readonly fftSize: number            // original FFT size (magnitudes.length - 1) * 2
+  readonly f1: number                 // detected F1 in Hz
+  readonly f2: number                 // detected F2 in Hz
+  readonly f3: number                 // detected F3 in Hz
 }
 
 // Processed voice features — output of the full pipeline
@@ -38,4 +40,5 @@ export type VowelTarget = {
   readonly vowel: Vowel
   readonly f1: number  // Hz
   readonly f2: number  // Hz
+  readonly f3: number  // Hz
 }

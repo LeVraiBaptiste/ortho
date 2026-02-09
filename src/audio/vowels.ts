@@ -1,14 +1,13 @@
 import type { Vowel, VowelTarget, FormantData } from './types'
 
-// French vowel formant targets (F1, F2 in Hz) — adapted for children's voices
 const VOWEL_TARGETS: readonly VowelTarget[] = [
-  { vowel: 'a', f1: 750, f2: 1450 },
-  { vowel: 'e', f1: 400, f2: 2050 },
-  { vowel: 'ɛ', f1: 600, f2: 1750 },
-  { vowel: 'i', f1: 250, f2: 2250 },
-  { vowel: 'o', f1: 350, f2: 750 },
-  { vowel: 'u', f1: 300, f2: 750 },
-  { vowel: 'y', f1: 250, f2: 1750 },
+  { vowel: 'a', f1: 750, f2: 1450, f3: 2600 },
+  { vowel: 'e', f1: 400, f2: 2050, f3: 2650 },
+  { vowel: 'ɛ', f1: 600, f2: 1750, f3: 2600 },
+  { vowel: 'i', f1: 250, f2: 2250, f3: 3000 },
+  { vowel: 'o', f1: 350, f2: 750, f3: 2550 },
+  { vowel: 'u', f1: 300, f2: 750, f3: 2300 },
+  { vowel: 'y', f1: 250, f2: 1750, f3: 2150 },
 ] as const
 
 // Minimum RMS energy to consider the signal voiced
@@ -16,6 +15,13 @@ const ENERGY_THRESHOLD = 0.01
 
 // Minimum magnitude for a spectral peak to be considered valid
 const PEAK_MAGNITUDE_THRESHOLD = 0.001
+
+// LPC analysis order (number of poles)
+const LPC_ORDER = 12
+
+// Convert Hz to Bark scale for perceptually uniform distance
+export const hzToBark = (hz: number): number =>
+  13 * Math.atan(0.00076 * hz) + 3.5 * Math.atan((hz / 7500) ** 2)
 
 // --- Helper functions ---
 
@@ -124,15 +130,19 @@ export const findPeakInRange = (
   return peakBin * binToHz
 }
 
-// Classify a vowel from F1/F2 using nearest Euclidean distance
-export const classifyVowel = (f1: number, f2: number): Vowel => {
+export const classifyVowel = (f1: number, f2: number, f3: number): Vowel => {
+  const b1 = hzToBark(f1)
+  const b2 = hzToBark(f2)
+  const b3 = hzToBark(f3)
+
   let bestVowel: Vowel = VOWEL_TARGETS[0].vowel
   let bestDist = Infinity
 
   for (const target of VOWEL_TARGETS) {
-    const d1 = f1 - target.f1
-    const d2 = f2 - target.f2
-    const dist = d1 * d1 + d2 * d2
+    const d1 = b1 - hzToBark(target.f1)
+    const d2 = b2 - hzToBark(target.f2)
+    const d3 = b3 - hzToBark(target.f3)
+    const dist = d1 * d1 + d2 * d2 + 0.8 * d3 * d3
     if (dist < bestDist) {
       bestDist = dist
       bestVowel = target.vowel
@@ -142,37 +152,251 @@ export const classifyVowel = (f1: number, f2: number): Vowel => {
   return bestVowel
 }
 
+// --- LPC analysis ---
+
+// Downsample by averaging groups of consecutive samples (acts as low-pass + decimation)
+const decimateSignal = (buffer: Float32Array, factor: number): Float32Array => {
+  const len = Math.floor(buffer.length / factor)
+  const result = new Float32Array(len)
+  for (let i = 0; i < len; i++) {
+    let sum = 0
+    const offset = i * factor
+    for (let j = 0; j < factor; j++) {
+      sum += buffer[offset + j]
+    }
+    result[i] = sum / factor
+  }
+  return result
+}
+
+// Autocorrelation R[0..order]
+const computeAutocorrelation = (signal: Float32Array, order: number): Float32Array => {
+  const n = signal.length
+  const R = new Float32Array(order + 1)
+  for (let k = 0; k <= order; k++) {
+    let sum = 0
+    for (let i = 0; i < n - k; i++) {
+      sum += signal[i] * signal[i + k]
+    }
+    R[k] = sum
+  }
+  return R
+}
+
+// Levinson-Durbin recursion: autocorrelation -> LPC coefficients + gain
+const levinsonDurbin = (R: Float32Array, order: number): { coeffs: Float32Array; gain: number } => {
+  if (R[0] === 0) {
+    return { coeffs: new Float32Array(order), gain: 1 }
+  }
+
+  const a = new Float32Array(order)
+  let E = R[0]
+
+  for (let i = 0; i < order; i++) {
+    // Compute reflection coefficient
+    let lambda = R[i + 1]
+    for (let j = 0; j < i; j++) {
+      lambda -= a[j] * R[i - j]
+    }
+    const ki = lambda / E
+
+    // Update coefficients using a temporary copy
+    const prev = new Float32Array(i)
+    for (let j = 0; j < i; j++) {
+      prev[j] = a[j]
+    }
+
+    a[i] = ki
+    for (let j = 0; j < i; j++) {
+      a[j] = prev[j] - ki * prev[i - 1 - j]
+    }
+
+    E *= (1 - ki * ki)
+    if (E <= 0) {
+      E = 1e-10
+    }
+  }
+
+  return { coeffs: a, gain: Math.sqrt(E) }
+}
+
+// Evaluate LPC spectral envelope |H(f)| = gain / |A(e^{jω})| at each FFT bin frequency
+const evaluateLpcEnvelope = (
+  coeffs: Float32Array,
+  gain: number,
+  numBins: number,
+  decimatedSampleRate: number,
+  originalSampleRate: number,
+  originalFftSize: number,
+): Float32Array => {
+  const envelope = new Float32Array(numBins)
+  const nyquist = decimatedSampleRate / 2
+  const order = coeffs.length
+
+  for (let i = 0; i < numBins; i++) {
+    const freq = i * originalSampleRate / originalFftSize
+
+    if (freq > nyquist) {
+      envelope[i] = 0
+      continue
+    }
+
+    const omega = (2 * Math.PI * freq) / decimatedSampleRate
+    let aReal = 1
+    let aImag = 0
+    for (let k = 0; k < order; k++) {
+      const angle = (k + 1) * omega
+      aReal -= coeffs[k] * Math.cos(angle)
+      aImag += coeffs[k] * Math.sin(angle)
+    }
+
+    const magSq = aReal * aReal + aImag * aImag
+    envelope[i] = gain / Math.sqrt(magSq)
+  }
+
+  return envelope
+}
+
+// --- Local peak finding for formant extraction ---
+
+type SpectralPeak = { readonly freq: number; readonly mag: number }
+
+const findLocalPeaks = (
+  envelope: Float32Array,
+  sampleRate: number,
+  minHz: number,
+  maxHz: number,
+): SpectralPeak[] => {
+  const n = (envelope.length - 1) * 2
+  const binToHz = sampleRate / n
+  const minBin = Math.max(1, Math.ceil(minHz / binToHz))
+  const maxBin = Math.min(envelope.length - 2, Math.floor(maxHz / binToHz))
+  const peaks: SpectralPeak[] = []
+
+  for (let i = minBin; i <= maxBin; i++) {
+    if (envelope[i] > envelope[i - 1] && envelope[i] > envelope[i + 1]) {
+      const alpha = envelope[i - 1]
+      const beta = envelope[i]
+      const gamma = envelope[i + 1]
+      const denom = alpha - 2 * beta + gamma
+      let freq = i * binToHz
+      if (denom !== 0) {
+        const correction = 0.5 * (alpha - gamma) / denom
+        freq = (i + correction) * binToHz
+      }
+      peaks.push({ freq, mag: beta })
+    }
+  }
+
+  return peaks
+}
+
+const strongestPeakInRange = (
+  peaks: readonly SpectralPeak[],
+  minHz: number,
+  maxHz: number,
+): SpectralPeak | null => {
+  let best: SpectralPeak | null = null
+  for (const p of peaks) {
+    if (p.freq >= minHz && p.freq <= maxHz && (best === null || p.mag > best.mag)) {
+      best = p
+    }
+  }
+  return best
+}
+
+const extractFormants = (
+  envelope: Float32Array,
+  sampleRate: number,
+): { f1: number; f2: number; f3: number } => {
+  const peaks = findLocalPeaks(envelope, sampleRate, 100, 4000)
+
+  // Sort peaks by frequency so we assign formants in order
+  const sorted = [...peaks].sort((a, b) => a.freq - b.freq)
+
+  // F1: strongest peak in 200-1200 Hz (main vocal tract resonance)
+  const f1Peak = strongestPeakInRange(sorted, 200, 1200)
+  const f1 = f1Peak ? f1Peak.freq : findPeakInRange(envelope, sampleRate, 200, 1200)
+
+  // F2: strongest peak above F1 in the F2 range
+  const f2Min = f1 + 200
+  const f2Peak = strongestPeakInRange(sorted, f2Min, 2800)
+  const f2 = f2Peak ? f2Peak.freq : findPeakInRange(envelope, sampleRate, f2Min, 2800)
+
+  // F3: lowest-frequency peak above F2
+  const f3Min = f2 + 200
+  const f3Peak = sorted.find(p => p.freq >= f3Min && p.freq <= 3800) ?? null
+  const f3 = f3Peak ? f3Peak.freq : findPeakInRange(envelope, sampleRate, f3Min, 3800)
+
+  return { f1, f2, f3 }
+}
+
 // --- Main detection ---
 
 export const detectVowel = (
   buffer: Float32Array,
   sampleRate: number,
 ): Vowel | null => {
-  // Check signal energy
   if (computeRMS(buffer) < ENERGY_THRESHOLD) {
     return null
   }
 
   const preEmphasized = applyPreEmphasis(buffer)
   const windowed = applyHammingWindow(preEmphasized)
+
+  // Decimate to ~8.8kHz for LPC (focuses all poles on the 0-4.4kHz formant region)
+  const decimationFactor = Math.max(1, Math.floor(sampleRate / 8500))
+  const decimated = decimateSignal(windowed, decimationFactor)
+  const decimatedRate = sampleRate / decimationFactor
+
+  const R = computeAutocorrelation(decimated, LPC_ORDER)
+  const { coeffs, gain } = levinsonDurbin(R, LPC_ORDER)
+
   const magnitudes = computeFFTMagnitude(windowed)
+  const fftSize = (magnitudes.length - 1) * 2
+  const lpcEnvelope = evaluateLpcEnvelope(coeffs, gain, magnitudes.length, decimatedRate, sampleRate, fftSize)
 
-  // Find F1 in extended range (supports children's voices up to ~1200 Hz)
-  const f1 = findPeakInRange(magnitudes, sampleRate, 200, 1200)
+  // Guided template matching: for each vowel, find the best-matching
+  // peaks near its expected formant positions
+  let bestVowel: Vowel | null = null
+  let bestDist = Infinity
 
-  // F2 search starts above F1 with a guard margin to avoid detecting the same peak
-  const f2MinHz = f1 + 200
-  const f2 = findPeakInRange(magnitudes, sampleRate, f2MinHz, 2800)
+  for (const target of VOWEL_TARGETS) {
+    // Search for peaks in a window around each target formant
+    const f1Range = 200
+    const f2Range = 300
+    const f3Range = 400
 
-  // Validate peaks have sufficient magnitude
-  const f1Mag = peakMagnitudeAt(magnitudes, sampleRate, f1)
-  const f2Mag = peakMagnitudeAt(magnitudes, sampleRate, f2)
+    const f1 = findPeakInRange(lpcEnvelope, sampleRate,
+      Math.max(100, target.f1 - f1Range), target.f1 + f1Range)
+    const f2 = findPeakInRange(lpcEnvelope, sampleRate,
+      Math.max(target.f1 + 100, target.f2 - f2Range), target.f2 + f2Range)
+    const f3 = findPeakInRange(lpcEnvelope, sampleRate,
+      Math.max(target.f2 + 100, target.f3 - f3Range), target.f3 + f3Range)
 
-  if (f1Mag < PEAK_MAGNITUDE_THRESHOLD || f2Mag < PEAK_MAGNITUDE_THRESHOLD) {
-    return null
+    // Check that formant magnitudes are above threshold
+    const f1Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f1)
+    const f2Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f2)
+    if (f1Mag < PEAK_MAGNITUDE_THRESHOLD || f2Mag < PEAK_MAGNITUDE_THRESHOLD) {
+      continue
+    }
+
+    // Compute Bark-scale distance
+    const b1 = hzToBark(f1)
+    const b2 = hzToBark(f2)
+    const b3 = hzToBark(f3)
+    const d1 = b1 - hzToBark(target.f1)
+    const d2 = b2 - hzToBark(target.f2)
+    const d3 = b3 - hzToBark(target.f3)
+    const dist = d1 * d1 + d2 * d2 + 0.8 * d3 * d3
+
+    if (dist < bestDist) {
+      bestDist = dist
+      bestVowel = target.vowel
+    }
   }
 
-  return classifyVowel(f1, f2)
+  return bestVowel
 }
 
 export type FormantAnalysis = {
@@ -192,21 +416,29 @@ export const analyzeFormants = (
   const windowed = applyHammingWindow(preEmphasized)
   const magnitudes = computeFFTMagnitude(windowed)
 
-  const f1 = findPeakInRange(magnitudes, sampleRate, 200, 1200)
-  const f2MinHz = f1 + 200
-  const f2 = findPeakInRange(magnitudes, sampleRate, f2MinHz, 2800)
+  const decimationFactor = Math.max(1, Math.floor(sampleRate / 11000))
+  const decimated = decimateSignal(windowed, decimationFactor)
+  const decimatedRate = sampleRate / decimationFactor
 
-  const f1Mag = peakMagnitudeAt(magnitudes, sampleRate, f1)
-  const f2Mag = peakMagnitudeAt(magnitudes, sampleRate, f2)
+  const R = computeAutocorrelation(decimated, LPC_ORDER)
+  const { coeffs, gain } = levinsonDurbin(R, LPC_ORDER)
 
   const fftSize = (magnitudes.length - 1) * 2
-  const formants: FormantData = { magnitudes, sampleRate, fftSize, f1, f2 }
+  const lpcEnvelope = evaluateLpcEnvelope(coeffs, gain, magnitudes.length, decimatedRate, sampleRate, fftSize)
 
-  if (f1Mag < PEAK_MAGNITUDE_THRESHOLD || f2Mag < PEAK_MAGNITUDE_THRESHOLD) {
+  const { f1, f2, f3 } = extractFormants(lpcEnvelope, sampleRate)
+
+  const f1Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f1)
+  const f2Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f2)
+  const f3Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f3)
+
+  const formants: FormantData = { magnitudes, lpcEnvelope, sampleRate, fftSize, f1, f2, f3 }
+
+  if (f1Mag < PEAK_MAGNITUDE_THRESHOLD || f2Mag < PEAK_MAGNITUDE_THRESHOLD || f3Mag < PEAK_MAGNITUDE_THRESHOLD) {
     return { vowel: null, formants }
   }
 
-  return { vowel: classifyVowel(f1, f2), formants }
+  return { vowel: classifyVowel(f1, f2, f3), formants }
 }
 
 // --- Internal utilities ---

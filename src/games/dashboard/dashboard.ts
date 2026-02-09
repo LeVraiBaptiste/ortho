@@ -153,14 +153,14 @@ const volumeToColor = (volume: number): string => {
 
 const MAX_HISTORY = 20
 
-const VOWEL_FORMANT_TARGETS: Record<string, { f1: number; f2: number }> = {
-  'a': { f1: 1000, f2: 1600 },
-  'e': { f1: 500, f2: 2600 },
-  'ɛ': { f1: 700, f2: 2300 },
-  'i': { f1: 350, f2: 2800 },
-  'o': { f1: 600, f2: 1100 },
-  'u': { f1: 400, f2: 1100 },
-  'y': { f1: 350, f2: 2200 },
+const VOWEL_FORMANT_TARGETS: Record<string, { f1: number; f2: number; f3: number }> = {
+  'a': { f1: 750, f2: 1450, f3: 2600 },
+  'e': { f1: 400, f2: 2050, f3: 2650 },
+  'ɛ': { f1: 600, f2: 1750, f3: 2600 },
+  'i': { f1: 250, f2: 2250, f3: 3000 },
+  'o': { f1: 350, f2: 750, f3: 2550 },
+  'u': { f1: 300, f2: 750, f3: 2300 },
+  'y': { f1: 250, f2: 1750, f3: 2150 },
 }
 
 // --- Spectrum drawing ---
@@ -187,6 +187,10 @@ const drawSpectrum = (
   for (let i = 0; i <= maxBin; i++) {
     const logMag = Math.log10(1 + magnitudes[i] * 500)
     if (logMag > maxMag) maxMag = logMag
+    if (formants.lpcEnvelope) {
+      const lpcLogMag = Math.log10(1 + formants.lpcEnvelope[i] * 500)
+      if (lpcLogMag > maxMag) maxMag = lpcLogMag
+    }
   }
   if (maxMag === 0) maxMag = 1
 
@@ -223,6 +227,23 @@ const drawSpectrum = (
   ctx.lineWidth = 1.5
   ctx.stroke()
 
+  // Draw LPC envelope overlay
+  if (formants.lpcEnvelope) {
+    // Normalize LPC envelope using the same log scale as the raw spectrum
+    ctx.beginPath()
+    for (let i = 0; i <= maxBin; i++) {
+      const freq = i * binToHz
+      const x = (freq / maxFreq) * w
+      const logMag = Math.log10(1 + formants.lpcEnvelope[i] * 500)
+      const y = h - (logMag / maxMag) * (h - 20)
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
+    }
+    ctx.strokeStyle = '#ff6b35'  // Orange color to distinguish from the raw spectrum
+    ctx.lineWidth = 2.5
+    ctx.stroke()
+  }
+
   // Draw vowel target F1/F2 bands if vowel detected
   if (vowel && VOWEL_FORMANT_TARGETS[vowel]) {
     const target = VOWEL_FORMANT_TARGETS[vowel]
@@ -241,16 +262,23 @@ const drawSpectrum = (
     ctx.fillStyle = withAlpha(vowelColor, 0.18)
     ctx.fillRect(f2Left, 0, f2Right - f2Left, h)
 
+    // F3 target band
+    const f3Left = ((target.f3 - bandWidth) / maxFreq) * w
+    const f3Right = ((target.f3 + bandWidth) / maxFreq) * w
+    ctx.fillStyle = withAlpha(vowelColor, 0.18)
+    ctx.fillRect(f3Left, 0, f3Right - f3Left, h)
+
     // Band labels
     ctx.fillStyle = withAlpha(vowelColor, 0.7)
     ctx.font = '11px system-ui, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('F1 cible', (f1Left + f1Right) / 2, 14)
     ctx.fillText('F2 cible', (f2Left + f2Right) / 2, 14)
+    ctx.fillText('F3 cible', (f3Left + f3Right) / 2, 14)
   }
 
-  // Draw actual detected F1/F2 markers
-  const { f1, f2 } = formants
+  // Draw actual detected F1/F2/F3 markers
+  const { f1, f2, f3 } = formants
   const markerColor = (vowel && vowelColors[vowel]) ? vowelColors[vowel] : colors.primary
 
   // F1 marker
@@ -282,6 +310,21 @@ const drawSpectrum = (
   ctx.font = 'bold 11px system-ui, sans-serif'
   ctx.textAlign = 'right'
   ctx.fillText('F2: ' + Math.round(f2) + ' Hz', f2x - 4, 30)
+
+  // F3 marker
+  const f3x = (f3 / maxFreq) * w
+  ctx.beginPath()
+  ctx.moveTo(f3x, 0)
+  ctx.lineTo(f3x, h)
+  ctx.strokeStyle = markerColor
+  ctx.lineWidth = 2
+  ctx.stroke()
+
+  // F3 label
+  ctx.fillStyle = markerColor
+  ctx.font = 'bold 11px system-ui, sans-serif'
+  ctx.textAlign = 'right'
+  ctx.fillText('F3: ' + Math.round(f3) + ' Hz', f3x - 4, 44)
 
   // Frequency axis labels
   ctx.fillStyle = colors.muted
