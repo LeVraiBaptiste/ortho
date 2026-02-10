@@ -1,54 +1,25 @@
 import type { Vowel, VowelTarget, FormantData } from './types'
 
 const VOWEL_TARGETS: readonly VowelTarget[] = [
-  { vowel: 'a', f1: 700, f2: 1300, f3: 2550 },                                                                                                                                                                  
-  { vowel: 'e', f1: 380, f2: 2100, f3: 2700 },                                                                                                                                                                  
-  { vowel: 'ɛ', f1: 550, f2: 1800, f3: 2600 },                                                                                                                                                                  
-  { vowel: 'i', f1: 270, f2: 2300, f3: 3100 },                                                                                                                                                                  
-  { vowel: 'o', f1: 380, f2: 700, f3: 2500 },                                                                                                                                                                   
-  // { vowel: 'u', f1: 310, f2: 700, f3: 2200 },                                                                                                                                                                   
-  // { vowel: 'y', f1: 260, f2: 1800, f3: 2100 }, 
-
-  // Voyelles orales antérieures (front oral vowels)
-  // { vowel: 'i', f1: 250, f2: 2250, f3: 3000 },   // "i" — lit
-  // { vowel: 'e', f1: 400, f2: 2050, f3: 2650 },   // "é" — télé
-  // { vowel: 'ɛ', f1: 600, f2: 1750, f3: 2600 },   // "è" — règle
-  // { vowel: 'a', f1: 750, f2: 1450, f3: 2600 },   // "a" — sac
-
-  // Voyelles orales centrales (central oral vowels)
-  // { vowel: 'y', f1: 250, f2: 1750, f3: 2150 },   // "u" — lune
-  // { vowel: 'ə', f1: 550, f2: 1550, f3: 2550 },   // "e" — ce
-  // { vowel: 'ø', f1: 350, f2: 1350, f3: 2250 },   // "eu" — feu
-  // { vowel: 'œ', f1: 500, f2: 1350, f3: 2350 },   // "oe" — fleur
-
-  // Voyelles orales postérieures (back oral vowels)
-  // { vowel: 'u', f1: 300, f2: 750, f3: 2300 },    // "ou" — poule
-  // { vowel: 'o', f1: 350, f2: 750, f3: 2550 },    // "au" — vélo
-  // { vowel: 'ɔ', f1: 500, f2: 1050, f3: 2550 },   // "o" — pomme
-  // { vowel: 'ɑ', f1: 700, f2: 1250, f3: 2700 },   // "â" — pâte
-
-  // // Voyelles nasales (nasal vowels)
-  // { vowel: 'œ̃', f1: 600, f2: 1350, f3: 2400 },   // "un" — un
-  // { vowel: 'ɛ̃', f1: 700, f2: 1500, f3: 2650 },   // "in" — pain
-  // { vowel: 'ɑ̃', f1: 750, f2: 1250, f3: 2400 },   // "an" — gant
-  // { vowel: 'ɔ̃', f1: 500, f2: 1250, f3: 2550 },   // "on" — ballon
-
-  // // Semi-voyelles / semi-consonnes (semi-vowels)
-  // { vowel: 'j', f1: 250, f2: 2250, f3: 3000 },   // "y" — fille
-  // { vowel: 'ɥ', f1: 250, f2: 1750, f3: 2150 },   // "u+" — huit
-  // { vowel: 'w', f1: 300, f2: 750, f3: 2300 },    // "w" — poisson
-
-  // // Consonnes occlusives nasales (nasal consonants)
-  // { vowel: 'm', f1: 300, f2: 1300, f3: 2300 },   // "m" — mur (explosion du "p" ou "b")
-  // { vowel: 'n', f1: 350, f2: 1050, f3: 2300 },   // "n" — nœud (explosion du "t" ou "d")
-  // { vowel: 'ɲ', f1: 350, f2: 1000, f3: 2400 },   // "gn" — ligne (explosion du "t" ou "d")
-  // { vowel: 'ŋ', f1: 350, f2: 1050, f3: 2000 },   // "nk/ng" — parking (explosion du "k"/"g")
-
-  // // Consonnes fricatives liquides (liquid consonants)
-  // { vowel: 'l', f1: 350, f2: 1700, f3: 2500 },   // "l" — lampe (friction très faible)
-  // { vowel: 'ʁ', f1: 550, f2: 1300, f3: 2300 },   // "r" — roue (friction très faible)
-  // { vowel: 'R', f1: 550, f2: 1300, f3: 2300 },   // "rrr" — terre (friction très faible)
+  { vowel: 'a', f1: 750, f2: 1450, f3: 2600 },
+  { vowel: 'e', f1: 400, f2: 2050, f3: 2650 },
+  { vowel: 'ɛ', f1: 600, f2: 1750, f3: 2600 },
+  { vowel: 'i', f1: 250, f2: 2250, f3: 3000 },
+  { vowel: 'o', f1: 350, f2: 750, f3: 2550 },
+  { vowel: 'u', f1: 300, f2: 750, f3: 2300 },
+  { vowel: 'y', f1: 250, f2: 1750, f3: 2150 },
 ] as const
+
+// Expected low-frequency energy ratio for each vowel (back vowels have higher ratio)
+const VOWEL_SPECTRAL_BALANCE: Record<string, number> = {
+  'a': 0.55,  // mid — energy in both bands
+  'e': 0.25,  // front — energy above 1500
+  'ɛ': 0.35,  // front-mid
+  'i': 0.15,  // front — energy concentrated above 1500
+  'o': 0.75,  // back — energy concentrated below 1500
+  'u': 0.80,  // back — energy concentrated below 1500
+  'y': 0.20,  // front — similar to /i/ but with lip rounding
+}
 
 // Minimum RMS energy to consider the signal voiced
 const ENERGY_THRESHOLD = 0.01
@@ -194,17 +165,42 @@ export const classifyVowel = (f1: number, f2: number, f3: number): Vowel => {
 
 // --- LPC analysis ---
 
-// Downsample by averaging groups of consecutive samples (acts as low-pass + decimation)
+// Downsample with proper anti-aliasing: Hamming-windowed sinc low-pass FIR filter + decimation
 const decimateSignal = (buffer: Float32Array, factor: number): Float32Array => {
-  const len = Math.floor(buffer.length / factor)
-  const result = new Float32Array(len)
-  for (let i = 0; i < len; i++) {
-    let sum = 0
-    const offset = i * factor
-    for (let j = 0; j < factor; j++) {
-      sum += buffer[offset + j]
+  if (factor <= 1) return buffer
+
+  // Design low-pass FIR filter: Hamming-windowed sinc
+  const cutoff = 0.8 / factor  // normalized cutoff (fraction of original Nyquist)
+  const numTaps = 4 * factor + 1
+  const halfTaps = Math.floor(numTaps / 2)
+  const kernel = new Float32Array(numTaps)
+
+  let sum = 0
+  for (let i = 0; i < numTaps; i++) {
+    const n = i - halfTaps
+    // Sinc function
+    const sinc = n === 0 ? 2 * Math.PI * cutoff : Math.sin(2 * Math.PI * cutoff * n) / n
+    // Hamming window
+    const window = 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (numTaps - 1))
+    kernel[i] = sinc * window
+    sum += kernel[i]
+  }
+  // Normalize
+  for (let i = 0; i < numTaps; i++) kernel[i] /= sum
+
+  // Apply filter then decimate
+  const outLen = Math.floor(buffer.length / factor)
+  const result = new Float32Array(outLen)
+  for (let i = 0; i < outLen; i++) {
+    const center = i * factor
+    let val = 0
+    for (let j = 0; j < numTaps; j++) {
+      const idx = center + j - halfTaps
+      if (idx >= 0 && idx < buffer.length) {
+        val += buffer[idx] * kernel[j]
+      }
     }
-    result[i] = sum / factor
+    result[i] = val
   }
   return result
 }
@@ -260,6 +256,62 @@ const levinsonDurbin = (R: Float32Array, order: number): { coeffs: Float32Array;
   return { coeffs: a, gain: Math.sqrt(E) }
 }
 
+// Burg's method: compute LPC coefficients directly from data
+// More robust than autocorrelation method for short frames
+const burgMethod = (signal: Float32Array, order: number): { coeffs: Float32Array; gain: number } => {
+  const n = signal.length
+  if (n === 0) return { coeffs: new Float32Array(order), gain: 1 }
+
+  // Initialize forward and backward prediction errors
+  let ef = new Float32Array(n)
+  let eb = new Float32Array(n)
+  for (let i = 0; i < n; i++) {
+    ef[i] = signal[i]
+    eb[i] = signal[i]
+  }
+
+  const a = new Float32Array(order)
+  let E = 0
+  for (let i = 0; i < n; i++) E += signal[i] * signal[i]
+  E /= n
+
+  for (let k = 0; k < order; k++) {
+    // Compute reflection coefficient
+    let num = 0
+    let den = 0
+    for (let i = k + 1; i < n; i++) {
+      num += ef[i] * eb[i - 1]
+      den += ef[i] * ef[i] + eb[i - 1] * eb[i - 1]
+    }
+
+    const rc = den > 0 ? -2.0 * num / den : 0
+
+    // Update LPC coefficients
+    const prev = new Float32Array(k)
+    for (let j = 0; j < k; j++) prev[j] = a[j]
+    a[k] = rc
+    for (let j = 0; j < k; j++) {
+      a[j] = prev[j] + rc * prev[k - 1 - j]
+    }
+
+    // Update prediction error power
+    E *= (1 - rc * rc)
+    if (E <= 0) E = 1e-10
+
+    // Update forward and backward errors
+    const newEf = new Float32Array(n)
+    const newEb = new Float32Array(n)
+    for (let i = k + 1; i < n; i++) {
+      newEf[i] = ef[i] + rc * eb[i - 1]
+      newEb[i] = eb[i - 1] + rc * ef[i]
+    }
+    ef = newEf
+    eb = newEb
+  }
+
+  return { coeffs: a, gain: Math.sqrt(E * n) }
+}
+
 // Evaluate LPC spectral envelope |H(f)| = gain / |A(e^{jω})| at each FFT bin frequency
 const evaluateLpcEnvelope = (
   coeffs: Float32Array,
@@ -297,26 +349,6 @@ const evaluateLpcEnvelope = (
   return envelope
 }
 
-// Normalize LPC envelope (min → 1.0) then raise to power to amplify formant peaks
-export const enhanceLpcEnvelope = (envelope: Float32Array, power: number = 2): Float32Array => {
-  const result = new Float32Array(envelope.length)
-  // Find minimum value above epsilon to avoid division by zero
-  const eps = 1e-10
-  let minVal = Infinity
-  for (let i = 0; i < envelope.length; i++) {
-    if (envelope[i] > eps && envelope[i] < minVal) {
-      minVal = envelope[i]
-    }
-  }
-  if (minVal === Infinity) minVal = 1
-
-  for (let i = 0; i < envelope.length; i++) {
-    const normalized = envelope[i] / minVal
-    result[i] = Math.pow(normalized, power)
-  }
-  return result
-}
-
 // --- Local peak finding for formant extraction ---
 
 type SpectralPeak = { readonly freq: number; readonly mag: number }
@@ -351,40 +383,23 @@ const findLocalPeaks = (
   return peaks
 }
 
-// Find peaks using first-derivative zero-crossings (positive-to-negative = peak)
-const findPeaksByDerivative = (
+const findBestLocalPeakInRange = (
   envelope: Float32Array,
   sampleRate: number,
   minHz: number,
   maxHz: number,
-): SpectralPeak[] => {
-  const n = (envelope.length - 1) * 2
-  const binToHz = sampleRate / n
-  const minBin = Math.max(1, Math.ceil(minHz / binToHz))
-  const maxBin = Math.min(envelope.length - 3, Math.floor(maxHz / binToHz))
-  const peaks: SpectralPeak[] = []
-
-  // Compute forward differences
-  for (let i = minBin; i <= maxBin; i++) {
-    const d0 = envelope[i] - envelope[i - 1]    // derivative at i-0.5
-    const d1 = envelope[i + 1] - envelope[i]    // derivative at i+0.5
-    // Zero-crossing: positive-to-negative (or zero) means a peak at bin i
-    if (d0 > 0 && d1 <= 0) {
-      // Parabolic interpolation for sub-bin accuracy
-      const alpha = envelope[i - 1]
-      const beta = envelope[i]
-      const gamma = envelope[i + 1]
-      const denom = alpha - 2 * beta + gamma
-      let freq = i * binToHz
-      if (denom !== 0) {
-        const correction = 0.5 * (alpha - gamma) / denom
-        freq = (i + correction) * binToHz
-      }
-      peaks.push({ freq, mag: beta })
-    }
+): number => {
+  // Find all local peaks in the full spectrum
+  const peaks = findLocalPeaks(envelope, sampleRate, minHz, maxHz)
+  if (peaks.length === 0) {
+    return findPeakInRange(envelope, sampleRate, minHz, maxHz)
   }
-
-  return peaks
+  // Return frequency of strongest peak in range
+  let best = peaks[0]
+  for (const p of peaks) {
+    if (p.mag > best.mag) best = p
+  }
+  return best.freq
 }
 
 const strongestPeakInRange = (
@@ -405,7 +420,7 @@ const extractFormants = (
   envelope: Float32Array,
   sampleRate: number,
 ): { f1: number; f2: number; f3: number } => {
-  const peaks = findPeaksByDerivative(envelope, sampleRate, 100, 4000)
+  const peaks = findLocalPeaks(envelope, sampleRate, 100, 4000)
 
   // Sort peaks by frequency so we assign formants in order
   const sorted = [...peaks].sort((a, b) => a.freq - b.freq)
@@ -427,107 +442,6 @@ const extractFormants = (
   return { f1, f2, f3 }
 }
 
-// --- Modular vowel scoring ---
-
-type VowelScore = { readonly vowel: Vowel; readonly score: number }
-type VowelScorer = (envelope: Float32Array, sampleRate: number) => VowelScore[]
-
-// Scorer A: direct envelope amplitude at target formant bins
-const scoreByEnvelopeAtTargets: VowelScorer = (envelope, sampleRate) => {
-  const n = (envelope.length - 1) * 2
-  const binToHz = sampleRate / n
-  const scores: VowelScore[] = []
-
-  for (const target of VOWEL_TARGETS) {
-    const f1Bin = Math.round(target.f1 / binToHz)
-    const f2Bin = Math.round(target.f2 / binToHz)
-    const f3Bin = Math.round(target.f3 / binToHz)
-
-    const f1Val = f1Bin < envelope.length ? envelope[f1Bin] : 0
-    const f2Val = f2Bin < envelope.length ? envelope[f2Bin] : 0
-    const f3Val = f3Bin < envelope.length ? envelope[f3Bin] : 0
-
-    scores.push({ vowel: target.vowel, score: 2 * f1Val + f2Val + 0.5 * f3Val })
-  }
-
-  return scores.sort((a, b) => b.score - a.score)
-}
-
-// Scorer B: sum envelope energy in ~100Hz bands around each formant
-const scoreByBandEnergy: VowelScorer = (envelope, sampleRate) => {
-  const n = (envelope.length - 1) * 2
-  const binToHz = sampleRate / n
-  const bandWidthHz = 100
-  const halfBandBins = Math.ceil(bandWidthHz / (2 * binToHz))
-
-  // Total energy for normalization
-  let totalEnergy = 0
-  for (let i = 0; i < envelope.length; i++) {
-    totalEnergy += envelope[i]
-  }
-  if (totalEnergy === 0) totalEnergy = 1
-
-  const scores: VowelScore[] = []
-
-  for (const target of VOWEL_TARGETS) {
-    const sumBand = (centerHz: number, weight: number): number => {
-      const centerBin = Math.round(centerHz / binToHz)
-      const lo = Math.max(0, centerBin - halfBandBins)
-      const hi = Math.min(envelope.length - 1, centerBin + halfBandBins)
-      let sum = 0
-      for (let i = lo; i <= hi; i++) {
-        sum += envelope[i]
-      }
-      return sum * weight / totalEnergy
-    }
-
-    const score = sumBand(target.f1, 2.0) + sumBand(target.f2, 1.0) + sumBand(target.f3, 0.5)
-    scores.push({ vowel: target.vowel, score })
-  }
-
-  return scores.sort((a, b) => b.score - a.score)
-}
-
-// Scorer C: Gaussian template correlation
-const scoreByCorrelation: VowelScorer = (envelope, sampleRate) => {
-  const n = (envelope.length - 1) * 2
-  const binToHz = sampleRate / n
-  const scores: VowelScore[] = []
-
-  // Formant bandwidth σ in Hz (typical for speech)
-  const sigma1 = 80
-  const sigma2 = 120
-  const sigma3 = 150
-
-  for (const target of VOWEL_TARGETS) {
-    // Build Gaussian template
-    const template = new Float32Array(envelope.length)
-    for (let i = 0; i < envelope.length; i++) {
-      const hz = i * binToHz
-      const g1 = Math.exp(-0.5 * ((hz - target.f1) / sigma1) ** 2)
-      const g2 = Math.exp(-0.5 * ((hz - target.f2) / sigma2) ** 2)
-      const g3 = Math.exp(-0.5 * ((hz - target.f3) / sigma3) ** 2)
-      template[i] = 2 * g1 + g2 + 0.5 * g3
-    }
-
-    // Dot-product correlation
-    let dotProduct = 0
-    for (let i = 0; i < envelope.length; i++) {
-      dotProduct += envelope[i] * template[i]
-    }
-
-    scores.push({ vowel: target.vowel, score: dotProduct })
-  }
-
-  return scores.sort((a, b) => b.score - a.score)
-}
-
-// Pick the winner from a sorted VowelScore array
-const pickBestVowel = (scores: VowelScore[]): Vowel | null => {
-  if (scores.length === 0) return null
-  return scores[0].vowel
-}
-
 // --- Main detection ---
 
 export const detectVowel = (
@@ -542,7 +456,7 @@ export const detectVowel = (
   const windowed = applyHammingWindow(preEmphasized)
 
   // Decimate to ~8.8kHz for LPC (focuses all poles on the 0-4.4kHz formant region)
-  const decimationFactor = Math.max(1, Math.floor(sampleRate / 8500))
+  const decimationFactor = Math.max(1, Math.floor(sampleRate / 7000))
   const decimated = decimateSignal(windowed, decimationFactor)
   const decimatedRate = sampleRate / decimationFactor
 
@@ -550,54 +464,74 @@ export const detectVowel = (
   const { coeffs, gain } = levinsonDurbin(R, LPC_ORDER)
 
   const magnitudes = computeFFTMagnitude(windowed)
-  const fftSize = (magnitudes.length - 1) * 2
+
+  // Spectral energy balance: ratio of energy below 1500 Hz vs total (200-4000 Hz)
+  const fftN = (magnitudes.length - 1) * 2
+  const binToHz = sampleRate / fftN
+  const minBin = Math.ceil(200 / binToHz)
+  const splitBin = Math.round(1500 / binToHz)
+  const maxBin = Math.floor(4000 / binToHz)
+
+  let lowEnergy = 0
+  let totalEnergy = 0
+  for (let i = minBin; i <= maxBin && i < magnitudes.length; i++) {
+    const e = magnitudes[i] * magnitudes[i]
+    totalEnergy += e
+    if (i <= splitBin) lowEnergy += e
+  }
+  const lowRatio = totalEnergy > 0 ? lowEnergy / totalEnergy : 0.5
+
+  const fftSize = fftN
   const lpcEnvelope = evaluateLpcEnvelope(coeffs, gain, magnitudes.length, decimatedRate, sampleRate, fftSize)
 
-  // Rank fusion: combine band energy + guided template matching on LPC envelope
-  const bandScores = scoreByBandEnergy(lpcEnvelope, sampleRate)
+  // Guided template matching: for each vowel, find the best-matching
+  // peaks near its expected formant positions
+  let bestVowel: Vowel | null = null
+  let bestDist = Infinity
 
-  // Guided template matching with amplitude-weighted scoring
-  const templateScores: VowelScore[] = []
   for (const target of VOWEL_TARGETS) {
-    const f1 = findPeakInRange(lpcEnvelope, sampleRate,
-      Math.max(100, target.f1 - 200), target.f1 + 200)
-    const f2 = findPeakInRange(lpcEnvelope, sampleRate,
-      Math.max(target.f1 + 100, target.f2 - 300), target.f2 + 300)
-    const f3 = findPeakInRange(lpcEnvelope, sampleRate,
-      Math.max(target.f2 + 100, target.f3 - 400), target.f3 + 400)
+    // Search for peaks in a window around each target formant
+    const f1Range = 200
+    const f2Range = 300
+    const f3Range = 400
 
+    const f1 = findBestLocalPeakInRange(lpcEnvelope, sampleRate,
+      Math.max(100, target.f1 - f1Range), target.f1 + f1Range)
+    const f2 = findBestLocalPeakInRange(lpcEnvelope, sampleRate,
+      Math.max(target.f1 + 100, target.f2 - f2Range), target.f2 + f2Range)
+    const f3 = findBestLocalPeakInRange(lpcEnvelope, sampleRate,
+      Math.max(target.f2 + 100, target.f3 - f3Range), target.f3 + f3Range)
+
+    // Check that formant magnitudes are above threshold
     const f1Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f1)
     const f2Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f2)
+    if (f1Mag < PEAK_MAGNITUDE_THRESHOLD || f2Mag < PEAK_MAGNITUDE_THRESHOLD) {
+      continue
+    }
 
-    const d1 = hzToBark(f1) - hzToBark(target.f1)
-    const d2 = hzToBark(f2) - hzToBark(target.f2)
-    const d3 = hzToBark(f3) - hzToBark(target.f3)
-    const dist = 2 * d1 * d1 + d2 * d2 + 0.5 * d3 * d3
+    // Compute Bark-scale distance
+    const b1 = hzToBark(f1)
+    const b2 = hzToBark(f2)
+    const b3 = hzToBark(f3)
+    const d1 = b1 - hzToBark(target.f1)
+    const d2 = b2 - hzToBark(target.f2)
+    const d3 = b3 - hzToBark(target.f3)
+    const dist = d1 * d1 + d2 * d2 + 0.8 * d3 * d3
 
-    const ampScore = f1Mag + f2Mag
-    const score = ampScore / (1 + dist)
-    templateScores.push({ vowel: target.vowel, score })
-  }
-  templateScores.sort((a, b) => b.score - a.score)
+    // Spectral balance penalty
+    const expectedBalance = VOWEL_SPECTRAL_BALANCE[target.vowel] ?? 0.5
+    const balanceDiff = lowRatio - expectedBalance
+    const balancePenalty = balanceDiff * balanceDiff * 2.0  // weight of 2.0
+    const totalDist = dist + balancePenalty
 
-  // Reciprocal rank fusion
-  const k = 10
-  const fusedScores = new Map<Vowel, number>()
-  for (const rankedScores of [bandScores, templateScores]) {
-    for (let rank = 0; rank < rankedScores.length; rank++) {
-      const v = rankedScores[rank].vowel
-      fusedScores.set(v, (fusedScores.get(v) ?? 0) + 1 / (k + rank))
+    if (totalDist < bestDist) {
+      bestDist = totalDist
+      bestVowel = target.vowel
     }
   }
 
-  let bestVowel: Vowel | null = null
-  let bestFused = -Infinity
-  for (const [vowel, score] of fusedScores) {
-    if (score > bestFused) {
-      bestFused = score
-      bestVowel = vowel
-    }
-  }
+  // Reject matches with high Bark distance (likely wrong)
+  if (bestDist > 5.0) return null
 
   return bestVowel
 }
@@ -629,17 +563,13 @@ export const analyzeFormants = (
   const fftSize = (magnitudes.length - 1) * 2
   const lpcEnvelope = evaluateLpcEnvelope(coeffs, gain, magnitudes.length, decimatedRate, sampleRate, fftSize)
 
-  // Enhance envelope for better formant extraction
-  const enhanced = enhanceLpcEnvelope(lpcEnvelope, 2)
+  const { f1, f2, f3 } = extractFormants(lpcEnvelope, sampleRate)
 
-  const { f1, f2, f3 } = extractFormants(enhanced, sampleRate)
+  const f1Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f1)
+  const f2Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f2)
+  const f3Mag = peakMagnitudeAt(lpcEnvelope, sampleRate, f3)
 
-  const f1Mag = peakMagnitudeAt(enhanced, sampleRate, f1)
-  const f2Mag = peakMagnitudeAt(enhanced, sampleRate, f2)
-  const f3Mag = peakMagnitudeAt(enhanced, sampleRate, f3)
-
-  // Store the enhanced envelope in FormantData for visualization
-  const formants: FormantData = { magnitudes, lpcEnvelope: enhanced, sampleRate, fftSize, f1, f2, f3 }
+  const formants: FormantData = { magnitudes, lpcEnvelope, sampleRate, fftSize, f1, f2, f3 }
 
   if (f1Mag < PEAK_MAGNITUDE_THRESHOLD || f2Mag < PEAK_MAGNITUDE_THRESHOLD || f3Mag < PEAK_MAGNITUDE_THRESHOLD) {
     return { vowel: null, formants }

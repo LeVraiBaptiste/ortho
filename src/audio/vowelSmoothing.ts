@@ -2,8 +2,12 @@ import type { Vowel } from './types'
 
 const WINDOW_SIZE = 7
 
-// Minimum number of agreeing detections to emit a vowel
-const MIN_CONSENSUS = 3
+// Exponential decay weights: most recent = 1.0, then 0.85^n
+// Buffer stores newest last, so weights are reversed (index 0 = oldest)
+const WEIGHTS = [0.37, 0.44, 0.52, 0.61, 0.72, 0.85, 1.0] as const
+
+// Minimum weighted sum to emit a vowel (replaces uniform MIN_CONSENSUS=3)
+const MIN_WEIGHTED_CONSENSUS = 1.5
 
 export type VowelSmoothingState = {
   readonly buffer: ReadonlyArray<Vowel | null>
@@ -22,30 +26,35 @@ export const smoothVowel = (
     ? [...state.buffer.slice(1), rawVowel]
     : [...state.buffer, rawVowel]
 
-  // Count occurrences of each non-null vowel
-  const counts = new Map<Vowel, number>()
-  for (const v of buffer) {
+  // Compute recency-weighted sum per vowel
+  // Buffer has newest at the end; WEIGHTS[i] corresponds to position i in a full buffer
+  const weightedCounts = new Map<Vowel, number>()
+  const offset = WINDOW_SIZE - buffer.length  // offset for partial buffers
+
+  for (let i = 0; i < buffer.length; i++) {
+    const v = buffer[i]
     if (v !== null) {
-      counts.set(v, (counts.get(v) ?? 0) + 1)
+      const w = WEIGHTS[i + offset]
+      weightedCounts.set(v, (weightedCounts.get(v) ?? 0) + w)
     }
   }
 
-  if (counts.size === 0) {
+  if (weightedCounts.size === 0) {
     return { vowel: null, state: { buffer } }
   }
 
-  // Find the vowel with the highest count
-  let bestVowel: Vowel = counts.keys().next().value!
-  let bestCount = 0
-  for (const [vowel, count] of counts) {
-    if (count > bestCount) {
-      bestCount = count
+  // Find the vowel with the highest weighted sum
+  let bestVowel: Vowel = weightedCounts.keys().next().value!
+  let bestScore = 0
+  for (const [vowel, score] of weightedCounts) {
+    if (score > bestScore) {
+      bestScore = score
       bestVowel = vowel
     }
   }
 
   return {
-    vowel: bestCount >= MIN_CONSENSUS ? bestVowel : null,
+    vowel: bestScore >= MIN_WEIGHTED_CONSENSUS ? bestVowel : null,
     state: { buffer },
   }
 }

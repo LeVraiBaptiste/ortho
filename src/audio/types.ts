@@ -1,5 +1,20 @@
-// French vowels detected by the system
-export type Vowel = 'a' | 'e' | 'ɛ' | 'i' | 'o' | 'u' | 'y'
+// All French phonemes detected by the system
+// (named "Vowel" for backward compatibility even though it now includes consonants)
+export type Vowel =
+  // Oral front vowels
+  | 'i' | 'e' | 'ɛ' | 'a'
+  // Oral central vowels
+  | 'y' | 'ə' | 'ø' | 'œ'
+  // Oral back vowels
+  | 'u' | 'o' | 'ɔ' | 'ɑ'
+  // Nasal vowels
+  | 'œ̃' | 'ɛ̃' | 'ɑ̃' | 'ɔ̃'
+  // Semi-vowels
+  | 'j' | 'ɥ' | 'w'
+  // Nasal consonants
+  | 'm' | 'n' | 'ɲ' | 'ŋ'
+  // Fricative liquids
+  | 'l' | 'ʁ' | 'R'
 
 // Raw audio frame from the analyser
 export type AudioFrame = {
