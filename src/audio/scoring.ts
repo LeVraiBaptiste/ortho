@@ -1,6 +1,7 @@
 import type { Vowel } from './types'
-import { VOWEL_TARGETS, hzToBark } from './vowelTargets'
+import { VOWEL_TARGETS, VOWEL_RATIO_TARGETS, hzToBark } from './vowelTargets'
 import { findPeaksByDerivative } from './peaks'
+import { extractFormants } from './formants'
 
 export type VowelScore = { readonly vowel: Vowel; readonly score: number }
 export type VowelScorer = (envelope: Float32Array, sampleRate: number) => VowelScore[]
@@ -75,6 +76,27 @@ export const scoreByPeakProximity: VowelScorer = (envelope, sampleRate) => {
     }
 
     const dist = 2 * nearestF1Dist * nearestF1Dist + nearestF2Dist * nearestF2Dist + 0.5 * nearestF3Dist * nearestF3Dist
+    scores.push({ vowel: target.vowel, score: 1 / (1 + dist) })
+  }
+
+  return scores.sort((a, b) => b.score - a.score)
+}
+
+// Scorer: formant ratio distance — speaker-invariant via log(F2/F1) and log(F3/F2)
+export const scoreByFormantRatios: VowelScorer = (envelope, sampleRate) => {
+  const { f1, f2, f3 } = extractFormants(envelope, sampleRate)
+
+  if (f1 <= 0 || f2 <= 0 || f3 <= 0 || f2 <= f1 || f3 <= f2) {
+    return VOWEL_TARGETS.map(t => ({ vowel: t.vowel, score: 0 }))
+  }
+
+  const logR1 = Math.log(f2 / f1)
+  const logR2 = Math.log(f3 / f2)
+
+  const scores: VowelScore[] = []
+
+  for (const target of VOWEL_RATIO_TARGETS) {
+    const dist = 2 * (logR1 - target.logR1) ** 2 + (logR2 - target.logR2) ** 2
     scores.push({ vowel: target.vowel, score: 1 / (1 + dist) })
   }
 

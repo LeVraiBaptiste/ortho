@@ -91,7 +91,6 @@ export const detectVowel = (
   // Step 3: Rank fusion among eligible vowels only
   const bandScores = scoreByBandEnergy(lpcEnvelope, sampleRate)
   const proximityScores = scoreByPeakProximity(lpcEnvelope, sampleRate)
-
   // Guided template matching
   const templateScores: VowelScore[] = []
   for (const target of VOWEL_TARGETS) {

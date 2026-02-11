@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { applyHammingWindow, applyPreEmphasis, computeFFTMagnitude } from '../../src/audio/dsp'
 import { findPeakInRange } from '../../src/audio/peaks'
-import { classifyVowel, hzToBark } from '../../src/audio/vowelTargets'
+import { classifyVowel, classifyVowelByRatios, VOWEL_RATIO_TARGETS, hzToBark } from '../../src/audio/vowelTargets'
 import { detectVowel } from '../../src/audio/detectLpc'
 
 // --- 1. classifyVowel ---
@@ -98,6 +98,86 @@ describe('classifyVowel', () => {
     it("classifies 'o' with F1+100, F2-100", () => {
       expect(classifyVowel(450, 650, 2550)).toBe('o')
     })
+  })
+})
+
+// --- classifyVowelByRatios ---
+
+describe('classifyVowelByRatios', () => {
+  const vowelTargets = [
+    { vowel: 'a', f1: 700, f2: 1300, f3: 2550 },
+    { vowel: 'e', f1: 380, f2: 2100, f3: 2700 },
+    { vowel: 'ɛ', f1: 550, f2: 1800, f3: 2600 },
+    { vowel: 'i', f1: 270, f2: 2300, f3: 3100 },
+    { vowel: 'o', f1: 380, f2: 700, f3: 2500 },
+    { vowel: 'u', f1: 310, f2: 700, f3: 2200 },
+  ] as const
+
+  describe('exact target frequencies classify correctly via ratios', () => {
+    for (const { vowel, f1, f2, f3 } of vowelTargets) {
+      it(`classifies '${vowel}' at exact targets (${f1}, ${f2}, ${f3})`, () => {
+        expect(classifyVowelByRatios(f1, f2, f3)).toBe(vowel)
+      })
+    }
+  })
+
+  describe('speaker invariance — uniformly scaled formants still classify correctly', () => {
+    const scalingFactors = [1.2, 1.3, 1.5]
+
+    for (const scale of scalingFactors) {
+      describe(`scaling factor ${scale}x (simulating smaller vocal tract)`, () => {
+        for (const { vowel, f1, f2, f3 } of vowelTargets) {
+          it(`classifies '${vowel}' at ${scale}x scaling`, () => {
+            expect(classifyVowelByRatios(f1 * scale, f2 * scale, f3 * scale)).toBe(vowel)
+          })
+        }
+      })
+    }
+  })
+})
+
+// --- classifyVowel blended with scaling ---
+
+describe('classifyVowel with speaker scaling', () => {
+  const vowelTargets = [
+    { vowel: 'a', f1: 700, f2: 1300, f3: 2550 },
+    { vowel: 'e', f1: 380, f2: 2100, f3: 2700 },
+    { vowel: 'ɛ', f1: 550, f2: 1800, f3: 2600 },
+    { vowel: 'i', f1: 270, f2: 2300, f3: 3100 },
+    { vowel: 'o', f1: 380, f2: 700, f3: 2500 },
+    { vowel: 'u', f1: 310, f2: 700, f3: 2200 },
+  ] as const
+
+  // 'o' and 'u' share F2=700 with F1 only 70Hz apart — Bark component
+  // of the blend makes them fragile under uniform scaling
+  const stableVowels = vowelTargets.filter(v => !['o', 'u'].includes(v.vowel))
+
+  describe('1.3x scaling (child voice simulation)', () => {
+    for (const { vowel, f1, f2, f3 } of stableVowels) {
+      it(`classifies '${vowel}' at 1.3x scaling`, () => {
+        expect(classifyVowel(f1 * 1.3, f2 * 1.3, f3 * 1.3)).toBe(vowel)
+      })
+    }
+  })
+})
+
+// --- VOWEL_RATIO_TARGETS ---
+
+describe('VOWEL_RATIO_TARGETS', () => {
+  it('has the same number of entries as VOWEL_TARGETS', () => {
+    expect(VOWEL_RATIO_TARGETS.length).toBe(6)
+  })
+
+  it('logR1 values are positive (F2 > F1 for all vowels)', () => {
+    for (const target of VOWEL_RATIO_TARGETS) {
+      expect(target.logR1).toBeGreaterThan(0)
+    }
+  })
+
+  it('logR2 values are positive (F3 > F2 for all vowels)', () => {
+    for (const target of VOWEL_RATIO_TARGETS) {
+      expect(target.logR2).toBeGreaterThan(0)
+    }
   })
 })
 
