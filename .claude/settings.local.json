@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(npm run check:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(npx vitest run:*)",
+      "Bash(sort:*)"
     ]
   }
 }

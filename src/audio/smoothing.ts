@@ -1,4 +1,6 @@
 import type { Vowel } from './types'
+import type { AudioProcessor, PipelineFrame } from './pipe'
+import type { VoiceFeatures } from './types'
 
 const WINDOW_SIZE = 7
 
@@ -56,5 +58,17 @@ export const smoothVowel = (
   return {
     vowel: bestScore >= MIN_WEIGHTED_CONSENSUS ? bestVowel : null,
     state: { buffer },
+  }
+}
+
+// Pipeline-compatible processor: closes over VowelSmoothingState
+export const createSmoothingProcessor = (): AudioProcessor => {
+  let state: VowelSmoothingState = initialVowelSmoothingState
+
+  return (_frame: PipelineFrame, features: Partial<VoiceFeatures>) => {
+    const rawVowel = features.isVoicing ? (features.vowel ?? null) : null
+    const smoothed = smoothVowel(rawVowel, state)
+    state = smoothed.state
+    return { vowel: features.isVoicing ? smoothed.vowel : null }
   }
 }

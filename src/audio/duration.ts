@@ -1,4 +1,5 @@
-import { DurationState } from './types.ts'
+import type { DurationState, VoiceFeatures } from './types'
+import type { AudioProcessor, PipelineFrame } from './pipe'
 
 export const initialDurationState: DurationState = {
   isVoicing: false,
@@ -24,5 +25,15 @@ export const trackDuration = (
   return {
     isVoicing: false,
     currentDuration: 0,
+  }
+}
+
+// Pipeline-compatible processor: closes over DurationState
+export const createDurationProcessor = (): AudioProcessor => {
+  let state: DurationState = initialDurationState
+
+  return (frame: PipelineFrame, features: Partial<VoiceFeatures>) => {
+    state = trackDuration(features.isVoicing ?? false, frame.dt, state)
+    return { duration: state.currentDuration }
   }
 }

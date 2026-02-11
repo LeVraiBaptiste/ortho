@@ -2,7 +2,7 @@ import { describe, it } from 'vitest'
 import { readdirSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { analyzeFormants } from '../../src/audio/vowels'
+import { analyzeFormants } from '../../src/audio/detectLpc'
 import { readWav } from '../utils/readWav'
 import type { Vowel } from '../../src/audio/types'
 

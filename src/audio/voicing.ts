@@ -1,3 +1,6 @@
+import type { AudioProcessor, PipelineFrame } from './pipe'
+import type { VoiceFeatures } from './types'
+
 // Hysteresis parameters
 const ONSET_FRAMES = 3   // ~50ms at 60fps — frames above threshold before voicing starts
 const OFFSET_FRAMES = 5  // ~83ms at 60fps — frames below threshold before voicing stops
@@ -42,4 +45,19 @@ export const updateVoicing = (
       : { isVoicing: false, framesAbove, framesBelow: 0 }
   }
   return { isVoicing: false, framesAbove: 0, framesBelow: 0 }
+}
+
+
+// Volume threshold below which we consider the user is not voicing
+const VOICING_THRESHOLD = 0.01
+
+// Pipeline-compatible processor: closes over VoicingState
+export const createVoicingProcessor = (): AudioProcessor => {
+  let state: VoicingState = initialVoicingState
+
+  return (_frame: PipelineFrame, features: Partial<VoiceFeatures>) => {
+    const raw = isRawVoicing(features.volume ?? 0, features.pitch ?? null, VOICING_THRESHOLD)
+    state = updateVoicing(raw, state)
+    return { isVoicing: state.isVoicing }
+  }
 }

@@ -3,7 +3,7 @@ import { readdirSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readWav } from '../utils/readWav'
-import { detectVowel } from '../../src/audio/vowels'
+import { detectVowel } from '../../src/audio/detectLpc'
 import type { Vowel } from '../../src/audio/types'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))

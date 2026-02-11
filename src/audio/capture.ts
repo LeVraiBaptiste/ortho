@@ -1,13 +1,13 @@
-import { AudioFrame, VoiceFeatures, DurationState } from './types.ts'
-import { computeRMS } from './volume.ts'
-import { detectPitch } from './pitch.ts'
-import { analyzeFormants } from './vowels.ts'
-import { trackDuration, initialDurationState } from './duration.ts'
-import { isRawVoicing, updateVoicing, initialVoicingState, VoicingState } from './voicing.ts'
-import { smoothVowel, initialVowelSmoothingState, VowelSmoothingState } from './vowelSmoothing.ts'
-
-// Volume threshold below which we consider the user is not voicing
-const VOICING_THRESHOLD = 0.01
+import type { VoiceFeatures } from './types'
+import type { PipelineFrame } from './pipe'
+import { pipe } from './pipe'
+import { computeRMS } from './volume'
+import { detectPitch } from './pitch'
+import { detectVowelEnsemble } from './detectEnsemble'
+import { analyzeFormants } from './detectLpc'
+import { createVoicingProcessor } from './voicing'
+import { createSmoothingProcessor } from './smoothing'
+import { createDurationProcessor } from './duration'
 
 const FFT_SIZE = 2048
 
@@ -22,11 +22,11 @@ export const createAudioPipeline = (): AudioPipeline => {
   let analyserNode: AnalyserNode | null = null
   let mediaStream: MediaStream | null = null
   let animationFrameId: number | null = null
-  let durationState: DurationState = initialDurationState
-  let voicingState: VoicingState = initialVoicingState
-  let vowelSmoothingState: VowelSmoothingState = initialVowelSmoothingState
   let lastTimestamp = 0
   const subscribers = new Set<(features: VoiceFeatures) => void>()
+
+  // Build the composable analysis pipeline
+  let analyze = buildPipeline()
 
   const notifySubscribers = (features: VoiceFeatures): void => {
     for (const callback of subscribers) {
@@ -43,36 +43,14 @@ export const createAudioPipeline = (): AudioPipeline => {
     const buffer = new Float32Array(analyserNode.fftSize)
     analyserNode.getFloatTimeDomainData(buffer)
 
-    const frame: AudioFrame = {
+    const frame: PipelineFrame = {
       buffer,
       sampleRate: audioContext.sampleRate,
       timestamp,
+      dt,
     }
 
-    const volume = computeRMS(frame.buffer)
-    const pitch = detectPitch(frame.buffer, frame.sampleRate)
-    const { vowel: rawVowel, formants } = analyzeFormants(frame.buffer, frame.sampleRate)
-
-    // Point 1 + 2: pitch-gated voicing with hysteresis
-    const raw = isRawVoicing(volume, pitch, VOICING_THRESHOLD)
-    voicingState = updateVoicing(raw, voicingState)
-    const isVoicing = voicingState.isVoicing
-
-    // Point 3: temporal vowel smoothing
-    const smoothed = smoothVowel(isVoicing ? rawVowel : null, vowelSmoothingState)
-    vowelSmoothingState = smoothed.state
-    const vowel = isVoicing ? smoothed.vowel : null
-
-    durationState = trackDuration(isVoicing, dt, durationState)
-
-    const features: VoiceFeatures = {
-      volume,
-      pitch,
-      vowel,
-      isVoicing,
-      duration: durationState.currentDuration,
-      formants,
-    }
+    const features = analyze(frame, {}) as VoiceFeatures
 
     notifySubscribers(features)
 
@@ -94,9 +72,7 @@ export const createAudioPipeline = (): AudioPipeline => {
     sourceNode.connect(analyser)
 
     lastTimestamp = 0
-    durationState = initialDurationState
-    voicingState = initialVoicingState
-    vowelSmoothingState = initialVowelSmoothingState
+    analyze = buildPipeline()
 
     animationFrameId = requestAnimationFrame(analysisLoop)
   }
@@ -120,9 +96,6 @@ export const createAudioPipeline = (): AudioPipeline => {
     }
 
     analyserNode = null
-    durationState = initialDurationState
-    voicingState = initialVoicingState
-    vowelSmoothingState = initialVowelSmoothingState
     lastTimestamp = 0
   }
 
@@ -135,3 +108,20 @@ export const createAudioPipeline = (): AudioPipeline => {
 
   return { start, stop, subscribe }
 }
+
+// Build a fresh pipeline with reset stateful processors
+const buildPipeline = () =>
+  pipe(
+    // Pure processors: read buffer, write features
+    (frame) => ({ volume: computeRMS(frame.buffer) }),
+    (frame) => ({ pitch: detectPitch(frame.buffer, frame.sampleRate) }),
+    (frame) => {
+      const vowel = detectVowelEnsemble(frame.buffer, frame.sampleRate)
+      const { formants } = analyzeFormants(frame.buffer, frame.sampleRate)
+      return { vowel, formants }
+    },
+    // Stateful processors: close over their own state
+    createVoicingProcessor(),
+    createSmoothingProcessor(),
+    createDurationProcessor(),
+  )

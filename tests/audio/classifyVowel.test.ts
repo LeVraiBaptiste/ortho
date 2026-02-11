@@ -1,13 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import {
-  classifyVowel,
-  applyHammingWindow,
-  applyPreEmphasis,
-  computeFFTMagnitude,
-  findPeakInRange,
-  detectVowel,
-  hzToBark,
-} from '../../src/audio/vowels'
+import { applyHammingWindow, applyPreEmphasis, computeFFTMagnitude } from '../../src/audio/dsp'
+import { findPeakInRange } from '../../src/audio/peaks'
+import { classifyVowel, hzToBark } from '../../src/audio/vowelTargets'
+import { detectVowel } from '../../src/audio/detectLpc'
 
 // --- 1. classifyVowel ---
 
