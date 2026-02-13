@@ -281,50 +281,18 @@ const drawSpectrum = (
   const { f1, f2, f3 } = formants
   const markerColor = (vowel && vowelColors[vowel]) ? vowelColors[vowel] : colors.primary
 
-  // F1 marker
-  const f1x = (f1 / maxFreq) * w
-  ctx.beginPath()
-  ctx.moveTo(f1x, 0)
-  ctx.lineTo(f1x, h)
-  ctx.strokeStyle = markerColor
-  ctx.lineWidth = 2
-  ctx.stroke()
-
-  // F1 label
-  ctx.fillStyle = markerColor
-  ctx.font = 'bold 11px system-ui, sans-serif'
-  ctx.textAlign = 'left'
-  ctx.fillText('F1: ' + Math.round(f1) + ' Hz', f1x + 4, 30)
-
-  // F2 marker
-  const f2x = (f2 / maxFreq) * w
-  ctx.beginPath()
-  ctx.moveTo(f2x, 0)
-  ctx.lineTo(f2x, h)
-  ctx.strokeStyle = markerColor
-  ctx.lineWidth = 2
-  ctx.stroke()
-
-  // F2 label
-  ctx.fillStyle = markerColor
-  ctx.font = 'bold 11px system-ui, sans-serif'
-  ctx.textAlign = 'right'
-  ctx.fillText('F2: ' + Math.round(f2) + ' Hz', f2x - 4, 30)
-
-  // F3 marker
-  const f3x = (f3 / maxFreq) * w
-  ctx.beginPath()
-  ctx.moveTo(f3x, 0)
-  ctx.lineTo(f3x, h)
-  ctx.strokeStyle = markerColor
-  ctx.lineWidth = 2
-  ctx.stroke()
-
-  // F3 label
-  ctx.fillStyle = markerColor
-  ctx.font = 'bold 11px system-ui, sans-serif'
-  ctx.textAlign = 'right'
-  ctx.fillText('F3: ' + Math.round(f3) + ' Hz', f3x - 4, 44)
+  const drawMarker = (freq: number | null, label: string, y: number, align: CanvasTextAlign): void => {
+    if (freq === null) return
+    const x = (freq / maxFreq) * w
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h)
+    ctx.strokeStyle = markerColor; ctx.lineWidth = 2; ctx.stroke()
+    ctx.fillStyle = markerColor; ctx.font = 'bold 11px system-ui, sans-serif'
+    ctx.textAlign = align
+    ctx.fillText(label + ': ' + Math.round(freq) + ' Hz', align === 'left' ? x + 4 : x - 4, y)
+  }
+  drawMarker(f1, 'F1', 30, 'left')
+  drawMarker(f2, 'F2', 30, 'right')
+  drawMarker(f3, 'F3', 44, 'right')
 
   // Frequency axis labels
   ctx.fillStyle = colors.muted
@@ -509,7 +477,7 @@ export const createDashboard = (): Game => {
     // Pitch
     if (pitchDisplay) {
       pitchDisplay.textContent = features.pitch !== null
-        ? Math.round(features.pitch) + ' Hz'
+        ? Math.round(features.pitch) + 'Hz'
         : '\u2014'
     }
 

@@ -163,16 +163,12 @@ export const analyzeFormants = (
   const enhanced = enhanceLpcEnvelope(lpcEnvelope, 2)
 
   const { f1, f2, f3 } = extractFormants(enhanced, sampleRate)
-
-  const f1Mag = peakMagnitudeAt(enhanced, sampleRate, f1)
-  const f2Mag = peakMagnitudeAt(enhanced, sampleRate, f2)
-  const f3Mag = peakMagnitudeAt(enhanced, sampleRate, f3)
-
   const formants: FormantData = { magnitudes, lpcEnvelope: enhanced, sampleRate, fftSize, f1, f2, f3 }
 
-  if (f1Mag < PEAK_MAGNITUDE_THRESHOLD || f2Mag < PEAK_MAGNITUDE_THRESHOLD || f3Mag < PEAK_MAGNITUDE_THRESHOLD) {
-    return { vowel: null, formants }
-  }
+  if (f1 === null) return { vowel: null, formants }
+
+  const f1Mag = peakMagnitudeAt(enhanced, sampleRate, f1)
+  if (f1Mag < PEAK_MAGNITUDE_THRESHOLD) return { vowel: null, formants }
 
   return { vowel: classifyVowel(f1, f2, f3), formants }
 }

@@ -86,7 +86,7 @@ export const scoreByPeakProximity: VowelScorer = (envelope, sampleRate) => {
 export const scoreByFormantRatios: VowelScorer = (envelope, sampleRate) => {
   const { f1, f2, f3 } = extractFormants(envelope, sampleRate)
 
-  if (f1 <= 0 || f2 <= 0 || f3 <= 0 || f2 <= f1 || f3 <= f2) {
+  if (f1 === null || f2 === null || f3 === null || f1 <= 0 || f2 <= 0 || f3 <= 0 || f2 <= f1 || f3 <= f2) {
     return VOWEL_TARGETS.map(t => ({ vowel: t.vowel, score: 0 }))
   }
 

@@ -29,9 +29,9 @@ export type FormantData = {
   readonly lpcEnvelope: Float32Array  // Smooth LPC spectral envelope (same frequency bins as magnitudes)
   readonly sampleRate: number
   readonly fftSize: number            // original FFT size (magnitudes.length - 1) * 2
-  readonly f1: number                 // detected F1 in Hz
-  readonly f2: number                 // detected F2 in Hz
-  readonly f3: number                 // detected F3 in Hz
+  readonly f1: number | null           // detected F1 in Hz
+  readonly f2: number | null           // detected F2 in Hz
+  readonly f3: number | null           // detected F3 in Hz
 }
 
 // Processed voice features — output of the full pipeline

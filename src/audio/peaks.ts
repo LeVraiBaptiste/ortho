@@ -71,16 +71,3 @@ export const findPeaksByDerivative = (
   return peaks
 }
 
-export const strongestPeakInRange = (
-  peaks: readonly SpectralPeak[],
-  minHz: number,
-  maxHz: number,
-): SpectralPeak | null => {
-  let best: SpectralPeak | null = null
-  for (const p of peaks) {
-    if (p.freq >= minHz && p.freq <= maxHz && (best === null || p.mag > best.mag)) {
-      best = p
-    }
-  }
-  return best
-}
